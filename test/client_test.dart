@@ -1013,7 +1013,6 @@ void main() {
           ),
         ),
       );
-      //await client.handleSync(SyncUpdate.fromJson(jsonDecode('')));
       final room = client
           .getRoomById('!bWEUQDujMKwjxkCXYr:tim-alpha.staging.famedly.de')!;
       await room.postLoad();

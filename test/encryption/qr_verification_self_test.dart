@@ -266,7 +266,6 @@ void main() async {
           .setDirectVerified(false);
       client2.userDeviceKeys[client2.userID]!.masterKey!
           .setDirectVerified(true);
-      // await client1.encryption!.ssss.clearCache();
       final req1 =
           await client1.userDeviceKeys[client2.userID]!.startVerification(
         newDirectChatEnableEncryption: false,
@@ -487,7 +486,6 @@ void main() async {
       // make sure our master key is *not* verified to not triger SSSS for now
       await client1.userDeviceKeys[client1.userID]!.masterKey!.setBlocked(true);
       await client2.userDeviceKeys[client2.userID]!.masterKey!.setBlocked(true);
-      // await client1.encryption!.ssss.clearCache();
       final req1 =
           await client1.userDeviceKeys[client2.userID]!.startVerification(
         newDirectChatEnableEncryption: false,

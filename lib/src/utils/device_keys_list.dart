@@ -501,7 +501,7 @@ class DeviceKeys extends SignableKey {
   @override
   Future<void> setVerified(bool newVerified, [bool sign = true]) async {
     if (!isValid) {
-      //throw Exception('setVerified called on invalid key');
+      Logs().w('setVerified called on invalid key');
       return;
     }
     await super.setVerified(newVerified, sign);
@@ -512,7 +512,7 @@ class DeviceKeys extends SignableKey {
   @override
   Future<void> setBlocked(bool newBlocked) async {
     if (!isValid) {
-      //throw Exception('setBlocked called on invalid key');
+      Logs().w('setBlocked called on invalid key');
       return;
     }
     _blocked = newBlocked;
