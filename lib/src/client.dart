@@ -271,6 +271,7 @@ class Client extends MatrixApi {
     /// lifetime to the server which overrides the default one. Needs server
     /// support.
     Duration? customRefreshTokenLifetime,
+    Duration retryIn = const Duration(seconds: 3),
   }) async {
     // ignore: deprecated_member_use_from_same_package
     customRefreshTokenLifetime ??= this.customRefreshTokenLifetime;
@@ -287,24 +288,36 @@ class Client extends MatrixApi {
       throw Exception('Cannot refresh access token when not logged in');
     }
 
-    final tokenResponse = switch (oidcClientId) {
-      // We do not use Matrix Native OIDC so we use the legacy /refresh endpoint:
-      null => await refreshWithCustomRefreshTokenLifetime(
-          refreshToken,
-          refreshTokenLifetimeMs: customRefreshTokenLifetime?.inMilliseconds,
-        ).then(
-          (legacyFormat) => OidcAuthResponse(
-            accessToken: legacyFormat.accessToken,
-            tokenType: 'Bearer',
-            refreshToken: legacyFormat.refreshToken,
-            expiresIn: legacyFormat.expiresInMs,
-            scope: null,
+    late final OidcAuthResponse tokenResponse;
+    try {
+      tokenResponse = switch (oidcClientId) {
+        // We do not use Matrix Native OIDC so we use the legacy /refresh endpoint:
+        null => await refreshWithCustomRefreshTokenLifetime(
+            refreshToken,
+            refreshTokenLifetimeMs: customRefreshTokenLifetime?.inMilliseconds,
+          ).then(
+            (legacyFormat) => OidcAuthResponse(
+              accessToken: legacyFormat.accessToken,
+              tokenType: 'Bearer',
+              refreshToken: legacyFormat.refreshToken,
+              expiresIn: legacyFormat.expiresInMs,
+              scope: null,
+            ),
           ),
-        ),
-      // We are using Matrix Native OIDC so we fetch the refresh endpoint first:
-      final String oidcClientId =>
-        await oidcRefresh(oidcClientId, refreshToken),
-    };
+        // We are using Matrix Native OIDC so we fetch the refresh endpoint first:
+        final String oidcClientId =>
+          await oidcRefresh(oidcClientId, refreshToken),
+      };
+    } on http.ClientException catch (_) {
+      Logs().w(
+        'Connection problem while trying to refresh access token. Try again in ${retryIn.inSeconds} seconds...',
+      );
+      await Future.delayed(retryIn);
+      return refreshAccessToken(
+        customRefreshTokenLifetime: customRefreshTokenLifetime,
+        retryIn: retryIn,
+      );
+    }
 
     accessToken = tokenResponse.accessToken;
     final expiresInMs = tokenResponse.expiresIn;
@@ -2371,11 +2384,7 @@ class Client extends MatrixApi {
   Future<void>? _handleSoftLogoutFuture;
 
   Future<void> _handleSoftLogout() async {
-    final onSoftLogout = this.onSoftLogout;
-    if (onSoftLogout == null) {
-      await logout();
-      return;
-    }
+    final onSoftLogout = this.onSoftLogout ?? (_) => refreshAccessToken();
 
     _handleSoftLogoutFuture ??= () async {
       onLoginStateChanged.add(LoginState.softLoggedOut);
@@ -2399,8 +2408,7 @@ class Client extends MatrixApi {
     Duration expiresIn = const Duration(minutes: 1),
   ]) async {
     final tokenExpiresAt = accessTokenExpiresAt;
-    if (onSoftLogout != null &&
-        tokenExpiresAt != null &&
+    if (tokenExpiresAt != null &&
         tokenExpiresAt.difference(DateTime.now()) <= expiresIn) {
       await _handleSoftLogout();
     }
